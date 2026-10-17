@@ -376,16 +376,18 @@ function renderMovs(){
   const medios=['Todos'].concat(D.config.medios.map(m=>m.medio));
   $('f-medio').innerHTML=medios.map(m=>`<button class="chip ${m===filtroMedio?'on':''}" data-m="${esc(m)}">${esc(m==='Todos'?m:medioCorto(m))}</button>`).join('');
   const q=$('q').value.trim().toLowerCase();
-  const list=D.recientes.filter(m=>(filtroMedio==='Todos'||m.medio===filtroMedio)&&(!q||(m.desc+' '+m.cat+' '+m.monto+' '+m.medio).toLowerCase().includes(q)));
+  const enCC=filtroMedio==='Cuenta Corriente';
+  const list=D.recientes.filter(m=>(filtroMedio==='Todos'||m.medio===filtroMedio||(enCC&&m.tipo==='Pago TC'))&&(!q||(m.desc+' '+m.cat+' '+m.monto+' '+m.medio).toLowerCase().includes(q)));
   if(!list.length){$('movs').innerHTML='<div class="empty">No hay movimientos con ese filtro.</div>';return;}
   let out='',dia='';
   list.slice(0,200).forEach(m=>{
     if(m.fecha!==dia){if(dia)out+='</div>';dia=m.fecha;out+=`<div class="day">${cap(fch(m.fecha))} ${m.fecha.slice(0,4)!==D.hoy.slice(0,4)?m.fecha.slice(0,4):''}</div><div class="list">`;}
-    const signo=m.tipo==='Ingreso'||m.tipo==='Devolución'?'+':(m.tipo==='Gasto'?'-':'');
-    const cls=m.tipo==='Ingreso'||m.tipo==='Devolución'?'pos':(m.tipo==='Gasto'?'':'dim');
-    const cuota=m.cuotas>1?`<small>${m.cuotas} cuotas de ${clp(m.monto/m.cuotas,m.moneda)}</small>`:(m.medio.startsWith('TC')&&m.tipo==='Gasto'?`<small>pagas en ${mesDe(m.per)}</small>`:'');
+    const salidaCC=enCC&&m.tipo==='Pago TC';
+    const signo=m.tipo==='Ingreso'||m.tipo==='Devolución'?'+':(m.tipo==='Gasto'||salidaCC?'-':'');
+    const cls=m.tipo==='Ingreso'||m.tipo==='Devolución'?'pos':(m.tipo==='Gasto'||salidaCC?'':'dim');
+    const cuota=m.pendiente?'<small>Guardando…</small>':m.cuotas>1?`<small>${m.cuotas} cuotas de ${clp(m.monto/m.cuotas,m.moneda)}</small>`:(m.medio.startsWith('TC')&&m.tipo==='Gasto'?`<small>pagas en ${mesDe(m.per)}</small>`:'');
     out+=`<div class="swipe" data-id="${esc(m.id)}"><button class="del" data-del="${esc(m.id)}" aria-label="Eliminar">${TRASH}Eliminar</button>
-      <div class="li front"><div class="t"><div>${esc(m.desc)}</div><div class="s">${esc(m.tipo==='Gasto'?m.cat:m.tipo==='Pago TC'?'Pago de tarjeta':m.tipo)} · ${esc(medioCorto(m.medio))}${m.reemb?' · por cobrar':''}</div></div>
+      <div class="li front"><div class="t"><div>${esc(m.desc)}</div><div class="s">${esc(m.tipo==='Gasto'?m.cat:m.tipo==='Pago TC'?'Pago de tarjeta':m.tipo)} · ${esc(m.tipo==='Pago TC'?medioCorto(m.medio)+' desde Cta. cte.':medioCorto(m.medio))}${m.reemb?' · por cobrar':''}</div></div>
       <div class="v ${cls}">${signo}${clp(m.monto,m.moneda)}${cuota}</div></div></div>`;
   });
   $('movs').innerHTML=out+'</div>';
@@ -434,7 +436,9 @@ $('movs').addEventListener('click',e=>{
   const front=e.target.closest('.front');if(!front)return;
   if(abierto){cerrarAbierto();return;}
   const id=front.parentElement.dataset.id;
-  abrir(D.recientes.find(m=>m.id===id));
+  const mv=D.recientes.find(m=>m.id===id);
+  if(!mv||mv.pendiente){toast('Espera un momento, se está guardando');return;}
+  abrir(mv);
 });
 document.addEventListener('pointerdown',e=>{if(abierto&&!e.target.closest('.swipe'))cerrarAbierto();});
 
@@ -447,13 +451,15 @@ $('dlg-si').onclick=()=>{const f=dlgOk;cerrarDlg();if(f)f();};
 $('dlg').addEventListener('click',e=>{if(e.target.id==='dlg'){cerrarDlg();cerrarAbierto();}});
 function confirmarEliminar(id){
   const m=D.recientes.find(x=>x.id===id);if(!m)return;
+  if(m.pendiente){cerrarAbierto();toast('Espera un momento, se está guardando');return;}
   preguntar(`Se eliminará "${m.desc}" por ${clp(m.monto,m.moneda)} y dejará de contar en tus totales.`,()=>eliminar(id));
 }
 async function eliminar(id){
-  const fila=document.querySelector(`.swipe[data-id="${CSS.escape(id)}"]`);
-  if(fila)fila.classList.add('borrando');
-  try{const r=await api('anular',{id:id});setDatos(r.datos);cerrar();toast('Movimiento eliminado');}
-  catch(e){if(fila)fila.classList.remove('borrando');toast(e.message,true);}
+  const i=D.recientes.findIndex(m=>m.id===id);
+  const quitado=i>=0?D.recientes.splice(i,1)[0]:null;
+  renderMovs();cerrar();toast('Movimiento eliminado');
+  try{await sincronizar(api('anular',{id:id}));}
+  catch(e){if(quitado){D.recientes.splice(i,0,quitado);renderMovs();}toast('No se eliminó: '+e.message,true);}
 }
 
 /* ---------- Proyección ---------- */
@@ -528,18 +534,41 @@ function fmtIn(v){
 }
 function leerMonto(){return Number($('f-monto').value.replace(/\./g,'').replace(',','.'));}
 
+/* Guardado optimista: el movimiento aparece al instante y la planilla se actualiza en segundo plano */
+let enVuelo=0, huboVarios=false;
+async function sincronizar(promesa){
+  enVuelo++;if(enVuelo>1)huboVarios=true;
+  try{
+    const r=await promesa;enVuelo--;
+    if(enVuelo===0){if(huboVarios){huboVarios=false;cargar(true);}else setDatos(r.datos);}
+    return r;
+  }catch(e){enVuelo--;if(enVuelo===0&&huboVarios){huboVarios=false;cargar(true);}throw e;}
+}
 async function guardar(){
   const monto=leerMonto();
   if(!(monto>0)){toast('Ingresa el monto',true);$('f-monto').focus();return;}
   if(!$('w-cat').hidden&&!F.cat){toast('Elige una categoría',true);return;}
   const d={tipo:F.tipo,medio:F.medio,forma:F.forma,cuotas:F.cuotas,cat:F.cat,monto:monto,desc:$('f-desc').value,fecha:$('f-fecha').value,reemb:$('f-reemb').checked&&F.tipo==='Gasto'};
-  const b=$('guardar');b.disabled=true;b.textContent='Guardando…';
+  const med=D.config.medios.find(m=>m.medio===d.medio)||{};
+  const cat=d.tipo==='Pago TC'?'Pago tarjeta':d.tipo==='Traspaso'?'Traspaso propio':(d.cat||'Sin categoría');
+  const local={id:F.id||('tmp'+Date.now()),fecha:d.fecha,medio:d.medio,forma:d.forma,tipo:d.tipo,cat:cat,desc:d.desc.trim()||cat,monto:monto,
+    moneda:med.moneda||'CLP',cuotas:med.clase==='Crédito'&&d.tipo==='Gasto'?d.cuotas:1,per:'',reemb:d.reemb,origen:'App',pendiente:true};
+  const previo={F:Object.assign({},F),desc:$('f-desc').value,fecha:$('f-fecha').value,monto:$('f-monto').value,reemb:$('f-reemb').checked};
+  const idx=F.id?D.recientes.findIndex(m=>m.id===F.id):-1, antes=idx>=0?D.recientes[idx]:null;
+  if(idx>=0)D.recientes[idx]=local;else D.recientes.unshift(local);
+  LS.set('ultMedio',d.medio);
+  renderMovs();cerrar();toast('Guardando…');
   try{
-    const r=F.id?await api('edit',{id:F.id,d:d}):await api('add',{d:d});
-    LS.set('ultMedio',F.medio);
-    setDatos(r.datos);cerrar();toast(r.msg);
-  }catch(e){toast(e.message||'No se pudo guardar',true);}
-  finally{b.disabled=false;pintarForm();}
+    const r=await sincronizar(F.id?api('edit',{id:previo.F.id,d:d}):api('add',{d:d}));
+    toast(r.msg);
+  }catch(e){
+    const i=D.recientes.indexOf(local);
+    if(i>=0){if(antes)D.recientes[i]=antes;else D.recientes.splice(i,1);}
+    renderMovs();
+    toast('No se guardó: '+(e.message||'error'),true);
+    F=previo.F;$('f-desc').value=previo.desc;$('f-fecha').value=previo.fecha;$('f-monto').value=previo.monto;$('f-reemb').checked=previo.reemb;
+    pintarForm();$('sheet').classList.add('on');$('sheet').setAttribute('aria-hidden','false');
+  }
 }
 function vista(v){
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
