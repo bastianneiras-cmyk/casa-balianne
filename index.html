@@ -96,6 +96,8 @@ h2{font-size:17px;font-weight:700;margin:26px 0 10px}
 .mtop{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .mtop h1{margin-bottom:16px}
 .exp{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;color:var(--blue);margin-bottom:12px}
+.ftipo{margin-top:8px}
+.ftipo .chip{padding:7px 12px;font-size:14px}
 .exp svg{width:18px;height:18px}
 .search{width:100%;border:1px solid var(--line);background:var(--card);border-radius:var(--r-sm);padding:11px 14px;margin-bottom:10px}
 .day{font-size:13px;font-weight:600;color:var(--muted);margin:18px 4px 6px}
@@ -151,6 +153,12 @@ nav .fab svg{width:28px;height:28px}
 .dlg p{margin:0 0 16px;color:var(--muted);font-size:15px}
 .dlg .acts{display:flex;gap:10px}
 .dlg .acts button{flex:1;border-radius:var(--r-md);padding:14px;font-weight:700;border:1px solid var(--line);background:var(--card)}
+.xr{display:flex;gap:10px;margin-top:14px}
+.xr label{flex:1;font-size:13px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.xr .inp{padding:10px 10px;min-width:0}
+#exp-dlg .save{margin-top:18px}
+.x2{color:var(--blue)!important}
+.x3{display:block;margin:8px auto 0}
 .dlg .acts .si{background:var(--red);border-color:var(--red);color:#fff}
 
 /* Acceso */
@@ -199,6 +207,7 @@ nav .fab svg{width:28px;height:28px}
   <div class="mtop"><h1>Movimientos</h1><button class="exp" id="btn-exp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Exportar</button></div>
   <input id="q" class="search" type="search" placeholder="Buscar por descripción, categoría o monto">
   <div class="chips scroll" id="f-medio"></div>
+  <div class="chips scroll ftipo" id="f-tipo2"></div>
   <p class="tip">Desliza un movimiento a la izquierda para eliminarlo.</p>
   <div id="movs"></div>
 </section>
@@ -241,6 +250,18 @@ nav .fab svg{width:28px;height:28px}
   </div>
 </div>
 
+<div class="dlg" id="exp-dlg" role="dialog" aria-modal="true" aria-labelledby="exp-t">
+  <div class="box">
+    <h3 id="exp-t">Exportar a Excel</h3>
+    <p id="x-medio"></p>
+    <div class="chips" id="x-rapidos"><button class="chip" data-r="mes">Este mes</button><button class="chip" data-r="ant">Mes anterior</button><button class="chip" data-r="3m">Últimos 3 meses</button><button class="chip" data-r="anio">Este año</button></div>
+    <div class="xr"><label>Desde<input id="x-desde" class="inp" type="date"></label><label>Hasta<input id="x-hasta" class="inp" type="date"></label></div>
+    <button class="save" id="x-down">Descargar Excel</button>
+    <button class="danger x2" id="x-share" hidden>Compartir</button>
+    <button class="link x3" id="x-cancel">Cancelar</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -249,6 +270,9 @@ const MES3=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','d
 const TIPOS=[['Gasto','Gasto'],['Ingreso','Ingreso'],['Pago TC','Pago de tarjeta'],['Devolución','Devolución'],['Traspaso','Traspaso']];
 const FORMAS=['Débito','Transferencia','Pago web','PAC'];
 const TRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+const FTIPOS=[['todos','Todo'],['gastos','Gastos'],['abonos','Abonos'],['pagos','Pagos de tarjeta']];
+function tipoOk(m){return filtroTipo==='todos'||(filtroTipo==='gastos'&&m.tipo==='Gasto')||(filtroTipo==='abonos'&&(m.tipo==='Ingreso'||m.tipo==='Devolución'))||(filtroTipo==='pagos'&&m.tipo==='Pago TC');}
+let filtroTipo='todos';
 let D=null, F={}, filtroMedio='Todos', iMes=0, mesSel=null;
 const $=id=>document.getElementById(id);
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
@@ -378,6 +402,7 @@ function boletaHTML(b,i,m){
 /* ---------- Movimientos ---------- */
 function renderMovs(){
   const medios=['Todos'].concat(D.config.medios.map(m=>m.medio));
+  $('f-tipo2').innerHTML=FTIPOS.map(([v,l])=>`<button class="chip ${v===filtroTipo?'on':''}" data-ft="${v}">${l}</button>`).join('');
   $('f-medio').innerHTML=medios.map(m=>`<button class="chip ${m===filtroMedio?'on':''}" data-m="${esc(m)}">${esc(m==='Todos'?m:medioCorto(m))}</button>`).join('');
   const q=$('q').value.trim().toLowerCase();
   const enCC=filtroMedio==='Cuenta Corriente';
@@ -468,28 +493,63 @@ async function eliminar(id){
 
 function listaFiltrada(){
   const q=$('q').value.trim().toLowerCase(),enCC=filtroMedio==='Cuenta Corriente';
-  return D.recientes.filter(m=>!m.pendiente&&(filtroMedio==='Todos'||m.medio===filtroMedio||(enCC&&m.tipo==='Pago TC'))&&(!q||(m.desc+' '+m.cat+' '+m.monto+' '+m.medio).toLowerCase().includes(q)));
+  return D.recientes.filter(m=>!m.pendiente&&tipoOk(m)&&(filtroMedio==='Todos'||m.medio===filtroMedio||(enCC&&m.tipo==='Pago TC'))&&(!q||(m.desc+' '+m.cat+' '+m.monto+' '+m.medio).toLowerCase().includes(q)));
 }
 
-/* Exportar los movimientos visibles (filtro y búsqueda actuales) a CSV para Excel */
-async function exportar(){
-  const list=listaFiltrada();
-  if(!list.length){toast('No hay movimientos para exportar',true);return;}
-  const num=(n,mon)=>mon==='USD'?Number(n).toFixed(2).replace('.',','):String(Math.round(n));
-  const celda=v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
-  const filas=[['Fecha','Tipo','Categoría','Descripción','Medio','Forma','Monto','Moneda','Cuotas','Valor cuota','Mes de pago','Por cobrar']]
-    .concat(list.map(m=>{const [y,mo,d]=m.fecha.split('-');return [d+'-'+mo+'-'+y,m.tipo==='Pago TC'?'Pago de tarjeta':m.tipo,m.cat,m.desc,m.medio,m.forma||'',
-      num(m.monto,m.moneda),m.moneda,m.cuotas,num(m.monto/m.cuotas,m.moneda),m.per||'',m.reemb?'SI':''];}));
-  const csv='\ufeff'+filas.map(r=>r.map(celda).join(';')).join('\r\n');
-  const nombre='movimientos_'+(filtroMedio==='Todos'?'todos':medioCorto(filtroMedio).replace(/[^a-z0-9]+/gi,'_').replace(/^_|_$/g,'').toLowerCase())+'_'+D.hoy+'.csv';
-  const file=new File([csv],nombre,{type:'text/csv'});
+/* ---------- Exportar a Excel por rango de fechas ---------- */
+function ymdLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function rangoRapido(r){
+  const h=new Date(D.hoy+'T12:00');let a,b;
+  if(r==='mes'){a=new Date(h.getFullYear(),h.getMonth(),1);b=h;}
+  else if(r==='ant'){a=new Date(h.getFullYear(),h.getMonth()-1,1);b=new Date(h.getFullYear(),h.getMonth(),0);}
+  else if(r==='3m'){a=new Date(h.getFullYear(),h.getMonth()-2,1);b=h;}
+  else {a=new Date(h.getFullYear(),0,1);b=h;}
+  $('x-desde').value=ymdLocal(a);$('x-hasta').value=ymdLocal(b);
+  document.querySelectorAll('#x-rapidos .chip').forEach(c=>c.classList.toggle('on',c.dataset.r===r));
+}
+function abrirExportar(){
+  rangoRapido('mes');
+  $('x-medio').textContent=(filtroMedio==='Todos'?'Todos los medios':medioCorto(filtroMedio)+(filtroMedio==='Cuenta Corriente'?' (incluye pagos de tarjeta)':''))+' · '+FTIPOS.find(t=>t[0]===filtroTipo)[1].toLowerCase().replace(/^todo$/,'todos los tipos');
+  const movil=window.matchMedia('(pointer:coarse)').matches&&!!navigator.canShare;
+  $('x-share').hidden=!movil;
+  $('exp-dlg').classList.add('on');
+}
+function cerrarExportar(){$('exp-dlg').classList.remove('on');}
+let xlsxCarga=null;
+function cargarXLSX(){
+  if(window.XLSX)return Promise.resolve();
+  if(!xlsxCarga)xlsxCarga=new Promise((ok,ko)=>{const sc=document.createElement('script');
+    sc.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';sc.onload=ok;sc.onerror=()=>{xlsxCarga=null;ko(new Error('No se pudo cargar el generador de Excel. Revisa tu conexión.'));};document.head.appendChild(sc);});
+  return xlsxCarga;
+}
+async function exportar(compartir){
+  const desde=$('x-desde').value,hasta=$('x-hasta').value;
+  if(!desde||!hasta||desde>hasta){toast('Revisa el rango de fechas',true);return;}
+  const bD=$('x-down'),bS=$('x-share');bD.disabled=bS.disabled=true;const txt=bD.textContent;bD.textContent='Preparando…';
   try{
-    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:nombre});return;}
-  }catch(e){if(e.name==='AbortError')return;}
-  const url=URL.createObjectURL(file),a=document.createElement('a');
-  a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
-  toast(list.length+' movimientos exportados');
+    const [r]=await Promise.all([api('movs',{desde:desde,hasta:hasta}),cargarXLSX()]);
+    const enCC=filtroMedio==='Cuenta Corriente';
+    const list=r.movs.filter(m=>tipoOk(m)).filter(m=>filtroMedio==='Todos'||m.medio===filtroMedio||(enCC&&m.tipo==='Pago TC'));
+    if(!list.length){toast('No hay movimientos en ese rango',true);return;}
+    const filas=[['Fecha','Tipo','Categoría','Descripción','Medio','Forma','Monto','Moneda','Cuotas','Valor cuota','Mes de pago','Por cobrar']]
+      .concat(list.map(m=>{const [y,mo,d]=m.fecha.split('-').map(Number);return [(Date.UTC(y,mo-1,d)-Date.UTC(1899,11,30))/864e5,m.tipo==='Pago TC'?'Pago de tarjeta':m.tipo,m.cat,m.desc,m.medio,m.forma||'',
+        m.monto,m.moneda,m.cuotas,Math.round(m.monto/m.cuotas*100)/100,m.per||'',m.reemb?'SI':''];}));
+    const ws=XLSX.utils.aoa_to_sheet(filas);
+    for(let i=2;i<=filas.length;i++){['G','J'].forEach(c=>{const x=ws[c+i];if(x)x.z='#,##0';});const f=ws['A'+i];if(f)f.z='dd-mm-yyyy';}
+    ws['!cols']=[{wch:11},{wch:15},{wch:20},{wch:42},{wch:20},{wch:13},{wch:12},{wch:8},{wch:7},{wch:12},{wch:11},{wch:10}];
+    ws['!autofilter']={ref:'A1:L'+filas.length};
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Movimientos');
+    const medio=filtroMedio==='Todos'?'todos':medioCorto(filtroMedio).replace(/[^a-z0-9]+/gi,'_').replace(/^_|_$/g,'').toLowerCase();
+    const nombre='movimientos_'+medio+'_'+desde+'_a_'+hasta+'.xlsx';
+    if(compartir){
+      const file=new File([XLSX.write(wb,{type:'array',bookType:'xlsx'})],nombre,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      try{await navigator.share({files:[file],title:nombre});}catch(e){if(e.name!=='AbortError')throw e;return;}
+    }else{
+      XLSX.writeFile(wb,nombre);
+    }
+    cerrarExportar();toast(list.length+' movimientos exportados');
+  }catch(e){toast(e.message||'No se pudo exportar',true);}
+  finally{bD.disabled=bS.disabled=false;bD.textContent=txt;}
 }
 
 /* ---------- Proyección ---------- */
@@ -621,7 +681,14 @@ $('guardar').onclick=guardar;
 $('anular').onclick=()=>confirmarEliminar(F.id);
 $('f-monto').addEventListener('input',e=>{e.target.value=fmtIn(e.target.value);});
 $('q').addEventListener('input',renderMovs);
-$('btn-exp').onclick=()=>D&&exportar();
+$('btn-exp').onclick=()=>D&&abrirExportar();
+$('x-rapidos').addEventListener('click',e=>{const c=e.target.closest('[data-r]');if(c)rangoRapido(c.dataset.r);});
+['x-desde','x-hasta'].forEach(id=>$(id).addEventListener('input',()=>document.querySelectorAll('#x-rapidos .chip').forEach(c=>c.classList.remove('on'))));
+$('x-down').onclick=()=>exportar(false);
+$('x-share').onclick=()=>exportar(true);
+$('x-cancel').onclick=cerrarExportar;
+$('exp-dlg').addEventListener('click',e=>{if(e.target.id==='exp-dlg')cerrarExportar();});
+$('f-tipo2').addEventListener('click',e=>{const b=e.target.closest('[data-ft]');if(b){filtroTipo=b.dataset.ft;renderMovs();}});
 $('f-medio').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){filtroMedio=b.dataset.m;renderMovs();}});
 $('sheet').addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
