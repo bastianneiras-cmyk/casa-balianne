@@ -93,6 +93,10 @@ h2{font-size:17px;font-weight:700;margin:26px 0 10px}
 .cat .b{height:8px;background:var(--blue-soft);border-radius:4px;margin-top:6px;overflow:hidden}
 .cat .b i{display:block;height:100%;background:var(--blue);border-radius:4px}
 
+.mtop{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mtop h1{margin-bottom:16px}
+.exp{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;color:var(--blue);margin-bottom:12px}
+.exp svg{width:18px;height:18px}
 .search{width:100%;border:1px solid var(--line);background:var(--card);border-radius:var(--r-sm);padding:11px 14px;margin-bottom:10px}
 .day{font-size:13px;font-weight:600;color:var(--muted);margin:18px 4px 6px}
 
@@ -192,7 +196,7 @@ nav .fab svg{width:28px;height:28px}
 </section>
 
 <section id="v-movs" class="view">
-  <h1>Movimientos</h1>
+  <div class="mtop"><h1>Movimientos</h1><button class="exp" id="btn-exp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Exportar</button></div>
   <input id="q" class="search" type="search" placeholder="Buscar por descripción, categoría o monto">
   <div class="chips scroll" id="f-medio"></div>
   <p class="tip">Desliza un movimiento a la izquierda para eliminarlo.</p>
@@ -377,7 +381,7 @@ function renderMovs(){
   $('f-medio').innerHTML=medios.map(m=>`<button class="chip ${m===filtroMedio?'on':''}" data-m="${esc(m)}">${esc(m==='Todos'?m:medioCorto(m))}</button>`).join('');
   const q=$('q').value.trim().toLowerCase();
   const enCC=filtroMedio==='Cuenta Corriente';
-  const list=D.recientes.filter(m=>(filtroMedio==='Todos'||m.medio===filtroMedio||(enCC&&m.tipo==='Pago TC'))&&(!q||(m.desc+' '+m.cat+' '+m.monto+' '+m.medio).toLowerCase().includes(q)));
+  const list=listaFiltrada();
   if(!list.length){$('movs').innerHTML='<div class="empty">No hay movimientos con ese filtro.</div>';return;}
   let out='',dia='';
   list.slice(0,200).forEach(m=>{
@@ -460,6 +464,32 @@ async function eliminar(id){
   renderMovs();cerrar();toast('Movimiento eliminado');
   try{await sincronizar(api('anular',{id:id}));}
   catch(e){if(quitado){D.recientes.splice(i,0,quitado);renderMovs();}toast('No se eliminó: '+e.message,true);}
+}
+
+function listaFiltrada(){
+  const q=$('q').value.trim().toLowerCase(),enCC=filtroMedio==='Cuenta Corriente';
+  return D.recientes.filter(m=>!m.pendiente&&(filtroMedio==='Todos'||m.medio===filtroMedio||(enCC&&m.tipo==='Pago TC'))&&(!q||(m.desc+' '+m.cat+' '+m.monto+' '+m.medio).toLowerCase().includes(q)));
+}
+
+/* Exportar los movimientos visibles (filtro y búsqueda actuales) a CSV para Excel */
+async function exportar(){
+  const list=listaFiltrada();
+  if(!list.length){toast('No hay movimientos para exportar',true);return;}
+  const num=(n,mon)=>mon==='USD'?Number(n).toFixed(2).replace('.',','):String(Math.round(n));
+  const celda=v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const filas=[['Fecha','Tipo','Categoría','Descripción','Medio','Forma','Monto','Moneda','Cuotas','Valor cuota','Mes de pago','Por cobrar']]
+    .concat(list.map(m=>{const [y,mo,d]=m.fecha.split('-');return [d+'-'+mo+'-'+y,m.tipo==='Pago TC'?'Pago de tarjeta':m.tipo,m.cat,m.desc,m.medio,m.forma||'',
+      num(m.monto,m.moneda),m.moneda,m.cuotas,num(m.monto/m.cuotas,m.moneda),m.per||'',m.reemb?'SI':''];}));
+  const csv='\ufeff'+filas.map(r=>r.map(celda).join(';')).join('\r\n');
+  const nombre='movimientos_'+(filtroMedio==='Todos'?'todos':medioCorto(filtroMedio).replace(/[^a-z0-9]+/gi,'_').replace(/^_|_$/g,'').toLowerCase())+'_'+D.hoy+'.csv';
+  const file=new File([csv],nombre,{type:'text/csv'});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:nombre});return;}
+  }catch(e){if(e.name==='AbortError')return;}
+  const url=URL.createObjectURL(file),a=document.createElement('a');
+  a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  toast(list.length+' movimientos exportados');
 }
 
 /* ---------- Proyección ---------- */
@@ -591,6 +621,7 @@ $('guardar').onclick=guardar;
 $('anular').onclick=()=>confirmarEliminar(F.id);
 $('f-monto').addEventListener('input',e=>{e.target.value=fmtIn(e.target.value);});
 $('q').addEventListener('input',renderMovs);
+$('btn-exp').onclick=()=>D&&exportar();
 $('f-medio').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){filtroMedio=b.dataset.m;renderMovs();}});
 $('sheet').addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
