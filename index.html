@@ -98,6 +98,29 @@ h2{font-size:17px;font-weight:700;margin:26px 0 10px}
 .exp{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;color:var(--blue);margin-bottom:12px}
 .ftipo{margin-top:8px}
 .ftipo .chip{padding:7px 12px;font-size:14px}
+.refresh{background:var(--card);border:1px solid var(--line);border-radius:12px;width:40px;height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:center;color:var(--blue)}
+.refresh svg{width:20px;height:20px}
+.refresh.girando svg{animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.refresh.girando svg{animation:none}}
+.ahero{background:var(--card);border-radius:var(--r-lg);padding:18px 20px;margin-top:14px}
+.ahero .amt{font-size:40px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin:4px 0}
+.ahero .muted{font-size:14px}
+.ahd{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.seg{display:flex;background:var(--blue-soft);border-radius:10px;padding:3px;margin-top:16px}
+.seg button{border:0;background:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--blue)}
+.seg button.on{background:var(--card);box-shadow:0 1px 2px rgba(20,32,44,.12)}
+.arow{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 0;cursor:pointer}
+.arow .h{display:flex;justify-content:space-between;gap:10px;font-size:15px}
+.arow .h span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .h small{color:var(--muted);font-weight:500;margin-left:6px}
+.arow .b{height:8px;background:var(--blue-soft);border-radius:4px;margin-top:6px;overflow:hidden}
+.arow .b i{display:block;height:100%;background:var(--blue);border-radius:4px}
+.arow[aria-expanded="true"] .h b{color:var(--blue)}
+.adet{border-left:2px solid var(--blue-soft);margin:2px 0 10px 2px;padding-left:12px}
+.adet .ln{font-size:14px;padding:4px 0;display:flex;justify-content:space-between;gap:10px}
+.adet .ln span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adet .ln small{color:var(--muted)}
 .exp svg{width:18px;height:18px}
 .search{width:100%;border:1px solid var(--line);background:var(--card);border-radius:var(--r-sm);padding:11px 14px;margin-bottom:10px}
 .day{font-size:13px;font-weight:600;color:var(--muted);margin:18px 4px 6px}
@@ -177,7 +200,13 @@ nav .fab svg{width:28px;height:28px}
 </head>
 <body>
 
-<div id="loading" class="loading">Cargando tus cuentas…</div>
+<div id="loading" class="loading">
+  <p id="load-msg">Cargando tus cuentas…</p>
+  <div id="load-acts" hidden>
+    <button class="save" id="load-retry" style="max-width:280px">Reintentar</button>
+    <button class="link" id="load-reset" style="display:block;margin:10px auto 0">Volver a ingresar la clave</button>
+  </div>
+</div>
 
 <section id="login" class="login" hidden>
   <img src="logo.png" alt="Casa Balianne">
@@ -195,6 +224,7 @@ nav .fab svg{width:28px;height:28px}
       <button id="m-next" aria-label="Mes siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg></button>
       <button class="hoy" id="m-hoy" hidden>Hoy</button>
     </div>
+    <button class="refresh" id="btn-ref" aria-label="Actualizar datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v5h-5"/></svg></button>
   </header>
   <div id="boletas"></div>
   <h2 id="saldo-tit">Saldo del mes</h2>
@@ -212,6 +242,21 @@ nav .fab svg{width:28px;height:28px}
   <div id="movs"></div>
 </section>
 
+<section id="v-ana" class="view">
+  <h1>Análisis de gastos</h1>
+  <div class="chips scroll" id="a-per"></div>
+  <div class="xr" id="a-rango" hidden><label>Desde<input id="a-desde" class="inp" type="date"></label><label>Hasta<input id="a-hasta" class="inp" type="date"></label></div>
+  <div class="chips scroll ftipo" id="a-medio"></div>
+  <div class="ahero">
+    <div class="muted" id="a-sub">Total gastado</div>
+    <div class="amt" id="a-total">—</div>
+    <div class="muted" id="a-det"></div>
+  </div>
+  <div class="ahd"><h2>Distribución</h2><div class="seg" id="a-vista"><button data-av="cat" class="on">Categoría</button><button data-av="grupo">Grupo</button></div></div>
+  <div id="a-dist" class="saldo"></div>
+  <div id="a-medios-w"><h2>Por medio de pago</h2><div id="a-medios" class="saldo"></div></div>
+</section>
+
 <section id="v-proy" class="view">
   <h1>Proyección</h1>
   <p class="muted" style="margin-top:-8px;font-size:14px">Lo que sale de tu cuenta cada mes: boletas de tarjeta, cargos fijos y gastos con débito.</p>
@@ -223,7 +268,7 @@ nav .fab svg{width:28px;height:28px}
   <button data-v="movs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Movimientos</button>
   <button class="fab" id="btn-add" aria-label="Registrar movimiento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></button>
   <button data-v="proy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Proyección</button>
-  <button id="btn-ref"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v5h-5"/></svg>Actualizar</button>
+  <button data-v="ana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v9h9"/><path d="M20.5 15A9 9 0 1 1 9 3.5"/></svg>Análisis</button>
 </nav>
 
 <div class="sheet" id="sheet" aria-hidden="true">
@@ -280,12 +325,22 @@ const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 /* ---------- API (Apps Script) ---------- */
 async function api(action,p){
   if(typeof API_URL!=='string'||!/^https:\/\/script\.google\.com\//.test(API_URL)) throw new Error('Falta la URL de Apps Script en config.js');
-  let r;
-  try{
-    r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify(Object.assign({action:action,token:LS.get('clave')||''},p||{}))});
-  }catch(e){throw new Error('Sin conexión con la planilla. Revisa tu internet e intenta de nuevo.');}
-  let j;
+  const body=JSON.stringify(Object.assign({action:action,token:LS.get('clave')||''},p||{}));
+  const lectura=action==='datos'||action==='movs';
+  let r,j,intento=0;
+  while(true){
+    intento++;
+    const ctrl=new AbortController(),t=setTimeout(()=>ctrl.abort(),lectura?20000:30000);
+    try{
+      r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:body,signal:ctrl.signal});
+      clearTimeout(t);break;
+    }catch(e){
+      clearTimeout(t);
+      // Las lecturas se reintentan una vez; los registros no, para no duplicar
+      if(lectura&&intento<2){await new Promise(ok=>setTimeout(ok,800));continue;}
+      throw new Error(e.name==='AbortError'?'La planilla tardó demasiado en responder. Intenta de nuevo.':'Sin conexión con la planilla. Revisa tu internet e intenta de nuevo.');
+    }
+  }
   try{j=await r.json();}catch(e){throw new Error('La planilla no respondió bien. Revisa que la implementación tenga acceso "Cualquier usuario".');}
   if(!j.ok){const err=new Error(j.error==='CLAVE'?'Clave incorrecta':(j.error||'Error'));err.clave=j.error==='CLAVE';throw err;}
   return j;
@@ -311,8 +366,13 @@ function mostrarLogin(msg){
   if(msg){$('login-msg').textContent=msg;}
   setTimeout(()=>$('login-clave').focus(),200);
 }
+function datosValidos(d){
+  return !!(d&&Array.isArray(d.meses)&&d.meses.length&&Array.isArray(d.recientes)&&d.config&&Array.isArray(d.config.medios)&&d.config.medios.length&&Array.isArray(d.config.categorias));
+}
 function setDatos(d){
+  if(!datosValidos(d))throw new Error('La planilla envió datos incompletos.');
   D=d;LS.set('datos',JSON.stringify(d));
+  A.cache={};if(LS.get('v')==='ana'&&$('v-ana').classList.contains('on'))cargarAnalisis();
   const per=mesSel||mesHoy();
   let i=D.meses.findIndex(m=>m.per===per);
   if(i<0) i=Math.max(0,D.meses.findIndex(m=>m.per===mesHoy()));
@@ -323,21 +383,44 @@ function mostrarApp(){
   $('loading').style.display='none';$('login').hidden=true;$('nav').hidden=false;
   vista(LS.get('v')||'inicio');
 }
+let cargando=null, avisoLento=null;
+function pantallaCarga(msg,error){
+  $('loading').style.display='';
+  $('load-msg').textContent=msg;
+  $('load-acts').hidden=!error;
+}
 async function cargar(silencioso){
-  try{const r=await api('datos');setDatos(r.datos);mostrarApp();}
-  catch(e){
-    if(e.clave){LS.del('clave');LS.del('datos');mostrarLogin('Clave incorrecta. Revisa la clave en tu planilla: menú App Gastos → Ver clave de la app.');return;}
-    if(D){if(!silencioso)toast(e.message,true);}
-    else{$('loading').textContent=e.message;}
-  }
+  if(cargando)return cargando;
+  cargando=(async()=>{
+    const enPantalla=!$('nav').hidden;
+    if(!enPantalla){pantallaCarga('Cargando tus cuentas…',false);clearTimeout(avisoLento);avisoLento=setTimeout(()=>{if($('nav').hidden)pantallaCarga('Está tardando más de lo normal…',true);},8000);}
+    try{
+      const r=await api('datos');
+      setDatos(r.datos);
+      mostrarApp();
+      return true;
+    }catch(e){
+      if(e.clave){LS.del('clave');LS.del('datos');mostrarLogin('Clave incorrecta. Revisa la clave en tu planilla: menú App Gastos → Ver clave de la app.');return false;}
+      if(!$('nav').hidden){if(!silencioso)toast(e.message,true);}
+      else pantallaCarga(e.message,true);
+      return false;
+    }finally{clearTimeout(avisoLento);cargando=null;}
+  })();
+  return cargando;
 }
 function iniciar(){
   if(!LS.get('clave')){mostrarLogin();return;}
   const c=LS.get('datos');
-  if(c){try{setDatos(JSON.parse(c));mostrarApp();}catch(e){}}
+  if(c){
+    try{setDatos(JSON.parse(c));mostrarApp();}
+    catch(e){LS.del('datos');D=null;}   // copia guardada dañada: se descarta y se pide de nuevo
+  }
   cargar(true);
 }
-function render(){renderInicio();renderMovs();renderProy();}
+function render(){
+  try{renderInicio();renderMovs();renderProy();}
+  catch(e){console.error(e);toast('Error al mostrar los datos: '+e.message,true);}
+}
 
 /* ---------- Inicio ---------- */
 function renderInicio(){
@@ -552,6 +635,70 @@ async function exportar(compartir){
   finally{bD.disabled=bS.disabled=false;bD.textContent=txt;}
 }
 
+/* ---------- Análisis de gastos ---------- */
+const APER=[['mes','Este mes'],['ant','Mes anterior'],['3m','Últimos 3 meses'],['anio','Este año'],['otro','Otro rango']];
+let A={per:'mes',medio:'Todos',vista:'cat',abierto:null,cache:{},movs:null,clave:''};
+function rangoDe(r){
+  const h=new Date(D.hoy+'T12:00');let a,b;
+  if(r==='mes'){a=new Date(h.getFullYear(),h.getMonth(),1);b=h;}
+  else if(r==='ant'){a=new Date(h.getFullYear(),h.getMonth()-1,1);b=new Date(h.getFullYear(),h.getMonth(),0);}
+  else if(r==='3m'){a=new Date(h.getFullYear(),h.getMonth()-2,1);b=h;}
+  else if(r==='anio'){a=new Date(h.getFullYear(),0,1);b=h;}
+  else return [$('a-desde').value,$('a-hasta').value];
+  return [ymdLocal(a),ymdLocal(b)];
+}
+async function cargarAnalisis(forzar){
+  if(!D)return;
+  const [desde,hasta]=rangoDe(A.per);
+  $('a-rango').hidden=A.per!=='otro';
+  if(A.per!=='otro'){$('a-desde').value=desde;$('a-hasta').value=hasta;}
+  if(!desde||!hasta||desde>hasta){$('a-dist').innerHTML='<div class="empty">Revisa el rango de fechas.</div>';return;}
+  const clave=desde+'|'+hasta;A.clave=clave;
+  if(forzar)delete A.cache[clave];
+  if(A.cache[clave]){A.movs=A.cache[clave];pintarAnalisis();return;}
+  $('a-total').textContent='…';$('a-det').textContent='Cargando…';
+  try{
+    const r=await api('movs',{desde:desde,hasta:hasta});
+    A.cache[clave]=r.movs;
+    if(A.clave===clave){A.movs=r.movs;pintarAnalisis();}
+  }catch(e){if(A.clave===clave){$('a-total').textContent='—';$('a-det').textContent='';$('a-dist').innerHTML=`<div class="empty">${esc(e.message)}</div>`;}}
+}
+function grupoDe(cat){const c=D.config.categorias.find(x=>x.nombre===cat);return (c&&c.grupo)||'Otros';}
+function pintarAnalisis(){
+  $('a-per').innerHTML=APER.map(([v,l])=>`<button class="chip ${v===A.per?'on':''}" data-ap="${v}">${l}</button>`).join('');
+  const medios=['Todos'].concat(D.config.medios.map(m=>m.medio));
+  $('a-medio').innerHTML=medios.map(m=>`<button class="chip ${m===A.medio?'on':''}" data-am="${esc(m)}">${esc(m==='Todos'?'Todos los medios':medioCorto(m))}</button>`).join('');
+  document.querySelectorAll('#a-vista button').forEach(b=>b.classList.toggle('on',b.dataset.av===A.vista));
+  if(!A.movs)return;
+  const valor=m=>(m.tipo==='Devolución'?-1:1)*(m.moneda==='USD'?m.monto*(D.tc||0):m.monto);
+  const gastos=A.movs.filter(m=>(m.tipo==='Gasto'||m.tipo==='Devolución')&&(A.medio==='Todos'||m.medio===A.medio));
+  const total=gastos.reduce((s,m)=>s+valor(m),0);
+  const [desde,hasta]=rangoDe(A.per);
+  $('a-sub').textContent='Total gastado'+(A.medio==='Todos'?'':' con '+medioCorto(A.medio));
+  $('a-total').textContent=clp(total);
+  const nG=gastos.filter(m=>m.tipo==='Gasto').length;
+  $('a-det').textContent=`${nG} ${nG===1?'gasto':'gastos'} entre el ${fch(desde)} y el ${fch(hasta)}`;
+  // Agrupar
+  const key=m=>A.vista==='cat'?m.cat:grupoDe(m.cat);
+  const g={};
+  gastos.forEach(m=>{const k=key(m)||'Sin categoría';(g[k]=g[k]||{total:0,movs:[]});g[k].total+=valor(m);g[k].movs.push(m);});
+  const filas=Object.entries(g).map(([k,v])=>({k:k,total:v.total,movs:v.movs})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+  const max=Math.max(1,...filas.map(f=>f.total));
+  $('a-dist').innerHTML=filas.length?filas.map(f=>{
+    const pct=total>0?Math.round(f.total/total*100):0,ab=A.abierto===f.k;
+    const det=ab?`<div class="adet">${f.movs.slice().sort((a,b)=>a.fecha<b.fecha?1:-1).map(m=>`<div class="ln"><span>${esc(m.desc)} <small>· ${fch(m.fecha)} · ${esc(medioCorto(m.medio))}${A.vista==='grupo'?' · '+esc(m.cat):''}</small></span><span>${m.tipo==='Devolución'?'+':''}${clp(Math.abs(valor(m)))}</span></div>`).join('')}</div>`:'';
+    return `<button class="arow" data-ak="${esc(f.k)}" aria-expanded="${ab}"><div class="h"><span>${esc(f.k)}<small>${pct}%</small></span><b>${clp(f.total)}</b></div>
+      <div class="b"><i style="width:${(f.total/max*100).toFixed(1)}%"></i></div></button>${det}`;
+  }).join(''):'<div class="empty">No hay gastos en este período'+(A.medio==='Todos'?'':' con este medio')+'.</div>';
+  // Por medio de pago (solo con "Todos los medios")
+  $('a-medios-w').hidden=A.medio!=='Todos';
+  if(A.medio==='Todos'){
+    const pm={};gastos.forEach(m=>pm[m.medio]=(pm[m.medio]||0)+valor(m));
+    const fm=Object.entries(pm).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);const mx=Math.max(1,...fm.map(x=>x[1]));
+    $('a-medios').innerHTML=fm.length?fm.map(([md,v])=>`<button class="arow" data-amd="${esc(md)}"><div class="h"><span>${esc(medioCorto(md))}<small>${total>0?Math.round(v/total*100):0}%</small></span><b>${clp(v)}</b></div><div class="b"><i style="width:${(v/mx*100).toFixed(1)}%"></i></div></button>`).join(''):'<div class="empty">Sin datos.</div>';
+  }
+}
+
 /* ---------- Proyección ---------- */
 function renderProy(){
   $('proy').innerHTML=D.meses.filter(m=>m.per>=mesHoy()).map(m=>{
@@ -577,6 +724,7 @@ function catsPara(tipo){
   return D.config.categorias.filter(c=>c.tipo===t).map(c=>c.nombre).sort((a,b)=>(a==='Sin categoría')-(b==='Sin categoría')||(fr[b]||0)-(fr[a]||0));
 }
 function abrir(mov){
+  if(!datosValidos(D)){toast('Aún se están cargando tus datos. Intenta en unos segundos.',true);cargar(false);return;}
   F=mov?{id:mov.id,tipo:mov.tipo,medio:mov.medio,forma:mov.forma,cuotas:mov.cuotas,cat:mov.cat,verTodas:false}
        :{tipo:'Gasto',medio:LS.get('ultMedio')||'TC Signature',forma:'Débito',cuotas:1,cat:'',verTodas:false};
   $('f-tit').textContent=mov?'Editar movimiento':'Nuevo movimiento';
@@ -593,9 +741,11 @@ function abrir(mov){
 function cerrar(){$('sheet').classList.remove('on');$('sheet').setAttribute('aria-hidden','true');if(document.activeElement)document.activeElement.blur();}
 function pintarForm(){
   $('f-tipo').innerHTML=TIPOS.map(([v,l])=>`<button class="chip ${F.tipo===v?'on':''}" data-t="${v}">${l}</button>`).join('');
-  const ms=mediosPara(F.tipo);
+  let ms=mediosPara(F.tipo);
+  if(!ms.length){F.tipo='Gasto';ms=mediosPara('Gasto');}
+  if(!ms.length){cerrar();toast('No se pudieron cargar tus tarjetas. Toca Actualizar.',true);return;}
   if(!ms.find(m=>m.medio===F.medio)) F.medio=ms[0].medio;
-  const med=D.config.medios.find(m=>m.medio===F.medio);
+  const med=D.config.medios.find(m=>m.medio===F.medio)||ms[0];
   $('f-medios').innerHTML=ms.map(m=>`<button class="chip ${F.medio===m.medio?'on':''}" data-md="${esc(m.medio)}">${esc(medioCorto(m.medio))}</button>`).join('');
   $('f-sim').textContent=med.moneda==='USD'?'US$':'$';
   const cred=med.clase==='Crédito';
@@ -664,18 +814,29 @@ function vista(v){
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   document.querySelectorAll('nav [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   LS.set('v',v);window.scrollTo(0,0);
+  if(v==='ana'&&D){pintarAnalisis();cargarAnalisis();}
 }
 function irMes(i){if(!D||i<0||i>=D.meses.length)return;iMes=i;renderInicio();}
 
 /* ---------- Eventos ---------- */
 $('login-btn').onclick=()=>{const c=$('login-clave').value.trim();if(!c){$('login-clave').focus();return;}LS.set('clave',c);$('login').hidden=true;$('loading').style.display='';$('loading').textContent='Cargando tus cuentas…';cargar();};
 $('login-clave').addEventListener('keydown',e=>{if(e.key==='Enter')$('login-btn').click();});
+$('load-retry').onclick=()=>cargar(false);
+$('load-reset').onclick=()=>{LS.del('clave');LS.del('datos');D=null;mostrarLogin();};
+$('a-per').addEventListener('click',e=>{const b=e.target.closest('[data-ap]');if(!b)return;A.per=b.dataset.ap;A.abierto=null;
+  if(A.per==='otro'&&!$('a-desde').value){const [d,h]=rangoDe('mes');$('a-desde').value=d;$('a-hasta').value=h;}
+  pintarAnalisis();cargarAnalisis();});
+['a-desde','a-hasta'].forEach(id=>$(id).addEventListener('change',()=>{A.abierto=null;cargarAnalisis();}));
+$('a-medio').addEventListener('click',e=>{const b=e.target.closest('[data-am]');if(b){A.medio=b.dataset.am;A.abierto=null;pintarAnalisis();}});
+$('a-vista').addEventListener('click',e=>{const b=e.target.closest('[data-av]');if(b){A.vista=b.dataset.av;A.abierto=null;pintarAnalisis();}});
+$('a-dist').addEventListener('click',e=>{const b=e.target.closest('[data-ak]');if(b){A.abierto=A.abierto===b.dataset.ak?null:b.dataset.ak;pintarAnalisis();}});
+$('a-medios').addEventListener('click',e=>{const b=e.target.closest('[data-amd]');if(b){A.medio=b.dataset.amd;A.abierto=null;pintarAnalisis();window.scrollTo(0,0);}});
 $('m-prev').onclick=()=>irMes(iMes-1);
 $('m-next').onclick=()=>irMes(iMes+1);
 $('m-hoy').onclick=()=>irMes(D.meses.findIndex(m=>m.per===mesHoy()));
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b&&D)vista(b.dataset.v);});
 $('btn-add').onclick=()=>D&&abrir();
-$('btn-ref').onclick=async()=>{toast('Actualizando…');await cargar();if(D)toast('Datos al día');};
+$('btn-ref').onclick=async()=>{const b=$('btn-ref');b.classList.add('girando');A.cache={};try{if(await cargar())toast('Datos al día');}finally{b.classList.remove('girando');}};
 $('cerrar').onclick=cerrar;
 $('guardar').onclick=guardar;
 $('anular').onclick=()=>confirmarEliminar(F.id);
@@ -700,7 +861,9 @@ $('sheet').addEventListener('click',e=>{
   else if(t.dataset.mas){F.verTodas=true;pintarForm();}
 });
 $('sheet').addEventListener('input',e=>{if(e.target.id==='f-cotra'){const n=parseInt(e.target.value,10);if(n>0){F.cuotas=Math.min(48,n);document.querySelectorAll('#f-cuotas [data-c]').forEach(b=>b.classList.remove('on'));}}});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&D&&LS.get('clave'))cargar(true);});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&LS.get('clave')&&$('login').hidden)cargar(true);});
+window.addEventListener('pageshow',e=>{if(e.persisted&&LS.get('clave')&&$('login').hidden)cargar(true);});
+window.addEventListener('error',e=>{if(e.message&&!/Script error/i.test(e.message))toast('Error: '+e.message,true);});
 iniciar();
 </script>
 </body>
