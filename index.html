@@ -332,7 +332,7 @@ async function api(action,p){
     intento++;
     const ctrl=new AbortController(),t=setTimeout(()=>ctrl.abort(),lectura?20000:30000);
     try{
-      r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:body,signal:ctrl.signal});
+      r=await fetch(API_URL+(API_URL.includes('?')?'&':'?')+'q='+encodeURIComponent(body)+'&_='+Date.now(),{method:'GET',cache:'no-store',signal:ctrl.signal});
       clearTimeout(t);break;
     }catch(e){
       clearTimeout(t);
@@ -342,6 +342,7 @@ async function api(action,p){
     }
   }
   try{j=await r.json();}catch(e){throw new Error('La planilla no respondió bien. Revisa que la implementación tenga acceso "Cualquier usuario".');}
+  if(j.ok&&j.app&&!('datos' in j)&&!('movs' in j)&&!('msg' in j))throw new Error('La planilla tiene una versión antigua del código. Actualiza Code.gs en Apps Script y crea una nueva versión de la implementación.');
   if(!j.ok){const err=new Error(j.error==='CLAVE'?'Clave incorrecta':(j.error||'Error'));err.clave=j.error==='CLAVE';throw err;}
   return j;
 }
